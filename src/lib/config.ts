@@ -20,4 +20,7 @@ export const fsConfig = {
     process.env.FS_CDR_DIR,
     path.join(process.cwd(), "..", "freeswitchlocal", "log", "cdr-csv"),
   ),
+  /** Path to recordings as seen by the FreeSWITCH host (not the Windows app server) */
+  recordingsPathOnFs:
+    process.env.FS_RECORDINGS_PATH_ON_FS ?? "/usr/local/freeswitch/recordings",
 };

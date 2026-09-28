@@ -1,4 +1,3 @@
-import path from "path";
 import { fsConfig } from "@/lib/config";
 import type { Click2CallRequest } from "@/lib/types";
 
@@ -6,11 +5,14 @@ function sanitizeExt(value: string) {
   return value.replace(/[^\d+*#a-zA-Z-]/g, "");
 }
 
+function sanitizeVar(value: string) {
+  return value.replace(/[,{}]/g, "").trim();
+}
+
 export function buildOriginateCommand(req: Click2CallRequest): string {
   const agent = sanitizeExt(req.agent);
   const destination = sanitizeExt(req.destination);
   const domain = fsConfig.domain;
-  const context = req.context ?? "default";
   const timeout = req.timeoutSeconds ?? 30;
 
   const vars: string[] = [
@@ -19,34 +21,39 @@ export function buildOriginateCommand(req: Click2CallRequest): string {
     `hangup_after_bridge=true`,
   ];
 
-  if (req.callerIdName) vars.push(`origination_caller_id_name=${req.callerIdName}`);
-  if (req.callerIdNumber) vars.push(`origination_caller_id_number=${req.callerIdNumber}`);
+  if (req.callerIdName) {
+    vars.push(`origination_caller_id_name=${sanitizeVar(req.callerIdName)}`);
+  }
+  if (req.callerIdNumber) {
+    vars.push(`origination_caller_id_number=${sanitizeExt(req.callerIdNumber)}`);
+  }
 
   if (req.record) {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const file = path
-      .join(fsConfig.recordingsDir, `c2c_${agent}_to_${destination}_${stamp}.wav`)
-      .replace(/\\/g, "/");
+    const file = `${fsConfig.recordingsPathOnFs}/c2c_${agent}_to_${destination}_${stamp}.wav`;
     vars.push("RECORD_STEREO=true");
-    vars.push(`execute_on_answer=record_session ${file}`);
+    vars.push("bridge_pre_execute_bleg_app=record_session");
+    vars.push(`bridge_pre_execute_bleg_data=${file}`);
   }
 
   const agentLeg = `user/${agent}@${domain}`;
   const destLeg = `user/${destination}@${domain}`;
+  const varBlock = `{${vars.join(",")}}`;
 
   let dialString: string;
   switch (req.mode) {
     case "destination-first":
-      dialString = `{${vars.join(",")}}${destLeg} &bridge(${agentLeg})`;
+      dialString = `${varBlock}${destLeg} &bridge(${agentLeg})`;
       break;
     case "simultaneous":
-      dialString = `{${vars.join(",")}}${agentLeg}|:${destLeg}`;
+      dialString = `${varBlock}${agentLeg}|${destLeg} &bridge(${destLeg})`;
       break;
     case "agent-first":
     default:
-      dialString = `{${vars.join(",")}}${agentLeg} &bridge(${destLeg})`;
+      dialString = `${varBlock}${agentLeg} &bridge(${destLeg})`;
       break;
   }
 
-  return `originate ${dialString} ${destination} XML ${context}`;
+  // With &bridge(...), do not append "exten XML context" — that causes originate parse errors
+  return `originate ${dialString}`;
 }
