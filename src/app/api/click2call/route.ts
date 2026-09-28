@@ -16,11 +16,15 @@ export async function POST(req: Request) {
 
   const command = buildOriginateCommand(body);
   const manager = getEslManager();
-  const result = await manager.bgapi(command);
-
-  return NextResponse.json({
-    ok: true,
-    command,
-    result,
-  });
+  try {
+    const result = await manager.bgapi(command);
+    return NextResponse.json({
+      ok: true,
+      command,
+      result,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Click2call failed";
+    return NextResponse.json({ error: message, command }, { status: 503 });
+  }
 }

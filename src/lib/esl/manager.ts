@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import { fsConfig } from "@/lib/config";
 import type { FsEventPayload, LiveChannel } from "@/lib/types";
 import { EslClient } from "@/lib/esl/client";
+import { EslConnectionError } from "@/lib/esl/errors";
 import { eventToChannelPatch, parseChannelsJson } from "@/lib/esl/channels";
 
 const CHANNEL_EVENTS = [
@@ -25,6 +26,7 @@ class EslManager extends EventEmitter {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private pollTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
+  lastError: string | null = null;
 
   get connected() {
     return this.client?.isConnected ?? false;
@@ -64,13 +66,19 @@ class EslManager extends EventEmitter {
     } catch (err) {
       this.client?.disconnect();
       this.client = null;
+      this.lastError =
+        err instanceof Error ? err.message : "ESL connection failed";
       this.broadcast({
         type: "error",
-        message: err instanceof Error ? err.message : "ESL connection failed",
+        message: this.lastError,
         connected: false,
         at: new Date().toISOString(),
       });
-      this.scheduleReconnect();
+      const delay =
+        err instanceof EslConnectionError && err.code === "acl_denied"
+          ? 60_000
+          : 5_000;
+      this.scheduleReconnect(delay);
     } finally {
       this.connecting = false;
     }
@@ -101,6 +109,7 @@ class EslManager extends EventEmitter {
     });
 
     await this.client.connect();
+    this.lastError = null;
     await this.client.subscribe(CHANNEL_EVENTS);
     const raw = await this.client.api("show channels as json");
     const parsed = parseChannelsJson(raw);
@@ -170,13 +179,19 @@ class EslManager extends EventEmitter {
   }
 
   async api(command: string) {
-    await this.ensureClient();
-    return this.client!.api(command);
+    await this.safeEnsureClient();
+    if (!this.client?.isConnected) {
+      throw new Error(this.lastError ?? "Not connected to FreeSWITCH ESL");
+    }
+    return this.client.api(command);
   }
 
   async bgapi(command: string) {
-    await this.ensureClient();
-    return this.client!.bgapi(command);
+    await this.safeEnsureClient();
+    if (!this.client?.isConnected) {
+      throw new Error(this.lastError ?? "Not connected to FreeSWITCH ESL");
+    }
+    return this.client.bgapi(command);
   }
 }
 

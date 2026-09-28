@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFsEvents } from "@/hooks/useFsEvents";
 import { CdrPanel } from "@/components/CdrPanel";
 import { Click2CallPanel } from "@/components/Click2CallPanel";
@@ -20,6 +20,21 @@ const tabs: { id: Tab; label: string }[] = [
 export function Dashboard() {
   const [tab, setTab] = useState<Tab>("live");
   const { connected, channels, lastEvent, error } = useFsEvents();
+  const [eslError, setEslError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = () => {
+      void fetch("/api/status")
+        .then((r) => r.json())
+        .then((d: { eslError?: string | null; connected?: boolean }) => {
+          setEslError(d.eslError ?? null);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const t = setInterval(load, 12_000);
+    return () => clearInterval(t);
+  }, []);
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-8">
@@ -36,7 +51,11 @@ export function Dashboard() {
             FreeSWITCH instance.
           </p>
         </div>
-        <ConnectionBadge connected={connected} lastEvent={lastEvent} error={error} />
+        <ConnectionBadge
+          connected={connected}
+          lastEvent={lastEvent}
+          error={eslError ?? error}
+        />
       </header>
 
       <nav className="flex flex-wrap gap-2">

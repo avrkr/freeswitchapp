@@ -10,6 +10,7 @@ export async function GET() {
   await manager.refreshSnapshot();
   return NextResponse.json({
     connected: manager.connected,
+    eslError: manager.lastError,
     esl: {
       host: fsConfig.eslHost,
       port: fsConfig.eslPort,

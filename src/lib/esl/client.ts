@@ -1,6 +1,6 @@
 import net from "net";
 import { EventEmitter } from "events";
-import { randomUUID } from "crypto";
+import { errorFromEslGreeting } from "@/lib/esl/errors";
 
 export type EslMessage = {
   headers: Record<string, string>;
@@ -67,7 +67,7 @@ export class EslClient extends EventEmitter {
         this.waitForMessage(15000)
           .then((authRequest) => {
             if (authRequest.headers["Content-Type"] !== "auth/request") {
-              throw new Error("Expected auth/request from FreeSWITCH ESL");
+              throw errorFromEslGreeting(authRequest, this.host);
             }
             this.sendRaw(`auth ${this.password}`);
             return this.waitForMessage(15000);
