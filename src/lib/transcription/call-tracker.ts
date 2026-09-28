@@ -1,3 +1,4 @@
+import path from "path";
 import { fsConfig } from "@/lib/config";
 import {
   createCall,
@@ -19,6 +20,7 @@ const pending = new Map<string, PendingClick2Call>();
 const uuidToCallId = new Map<string, string>();
 const recordingByCall = new Map<string, string>();
 const forkedUuids = new Set<string>();
+const finalizedCalls = new Set<string>();
 
 export async function registerClick2Call(
   agent: string,
@@ -213,8 +215,23 @@ export async function handleFsEventForTranscription(event: Record<string, string
   if (name === "CHANNEL_HANGUP") {
     const uuid = event["Unique-ID"];
     if (!uuid) return;
-    const callId = uuidToCallId.get(uuid);
-    if (!callId) return;
+    let callId = uuidToCallId.get(uuid);
+    if (!callId) {
+      callId = (await findCallByChannelUuid(uuid))?.callId;
+    }
+    if (!callId) {
+      const a = extFromEvent(event);
+      const dest = (event["Caller-Destination-Number"] ?? "").replace(/\D/g, "");
+      if (a || dest) {
+        const created = await createCall({
+          agent: a || "unknown",
+          customer: dest || "unknown",
+          metadata: { source: "hangup-ingest" },
+        });
+        callId = created?.callId;
+      }
+    }
+    if (!callId || finalizedCalls.has(callId)) return;
 
     forkedUuids.delete(uuid);
     const file =
@@ -231,13 +248,48 @@ export async function handleFsEventForTranscription(event: Record<string, string
       }
     }
 
+    const call = await findCallById(callId);
+    const endedAt = new Date();
+    const startedAt = call?.startedAt ? new Date(call.startedAt) : endedAt;
+    const answeredAt = call?.answeredAt ? new Date(call.answeredAt) : undefined;
+    const durationSec = Math.max(
+      0,
+      Math.round((endedAt.getTime() - startedAt.getTime()) / 1000),
+    );
+    const billSec = answeredAt
+      ? Math.max(0, Math.round((endedAt.getTime() - answeredAt.getTime()) / 1000))
+      : Number(event["variable_billsec"] ?? 0) || 0;
+
+    const recordingFileName = file
+      ? path.basename(String(file).replace(/\\/g, "/"))
+      : undefined;
+    const recordingUrl = file
+      ? `/api/recordings/${encodeURIComponent(recordingFileName ?? "recording.wav")}`
+      : undefined;
+
     await updateCall(callId, {
       status: "completed",
-      endedAt: new Date(),
-      hangupCause: event["Hangup-Cause"],
-      ...(file ? { recordingPath: file } : {}),
+      endedAt,
+      hangupCause: event["Hangup-Cause"] ?? call?.hangupCause,
+      durationSec,
+      billSec,
+      callerIdName: event["Caller-Caller-ID-Name"] ?? call?.callerIdName,
+      callerIdNumber:
+        event["Caller-Caller-ID-Number"]?.replace(/\D/g, "") ?? call?.callerIdNumber,
+      destinationNumber:
+        event["Caller-Destination-Number"]?.replace(/\D/g, "") ?? call?.destinationNumber,
+      direction: event["Call-Direction"] ?? call?.direction,
+      context: event["Caller-Context"] ?? call?.context,
+      ...(file
+        ? {
+            recordingPath: file,
+            recordingFileName,
+            recordingUrl,
+          }
+        : {}),
     });
 
+    finalizedCalls.add(callId);
     uuidToCallId.delete(uuid);
     recordingByCall.delete(callId);
     pending.forEach((p, key) => {

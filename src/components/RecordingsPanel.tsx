@@ -1,18 +1,38 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { RecordingEntry } from "@/lib/types";
+
+type RecordingRow = {
+  callId?: string;
+  name: string;
+  agent?: string;
+  customer?: string;
+  relativePath: string;
+  playbackUrl?: string | null;
+  modifiedAt: string;
+  size: number;
+  durationSec?: number;
+};
 
 export function RecordingsPanel() {
-  const [recordings, setRecordings] = useState<RecordingEntry[]>([]);
+  const [recordings, setRecordings] = useState<RecordingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [source, setSource] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/recordings?limit=100");
-      const data = (await res.json()) as { recordings: RecordingEntry[] };
+      const data = (await res.json()) as {
+        recordings: RecordingRow[];
+        source?: string;
+        message?: string;
+        configured?: boolean;
+      };
       setRecordings(data.recordings ?? []);
+      setSource(data.source ?? "");
+      setMessage(data.configured === false ? data.message ?? null : null);
     } finally {
       setLoading(false);
     }
@@ -24,63 +44,61 @@ export function RecordingsPanel() {
     return () => clearInterval(t);
   }, [load]);
 
-  function formatSize(bytes: number) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  function audioSrc(rec: RecordingRow) {
+    if (rec.playbackUrl) return rec.playbackUrl;
+    return `/api/recordings/${rec.relativePath.split("/").map(encodeURIComponent).join("/")}`;
   }
 
   return (
     <section className="rc-card p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-white">Call recordings</h2>
-          <p className="text-sm text-zinc-400">Files from FreeSWITCH recordings directory</p>
+          <h2 className="text-lg font-semibold text-[var(--rc-text)]">Recordings</h2>
+          <p className="text-sm text-[var(--rc-muted)]">
+            {source === "mongodb"
+              ? "From MongoDB (calls with recordingPath)"
+              : "Filesystem fallback — set MONGODB_URI"}
+          </p>
         </div>
         <button
           type="button"
           onClick={() => void load()}
-          className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700"
+          className="rounded-lg border border-[var(--rc-border)] bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
         >
           Refresh
         </button>
       </div>
 
+      {message ? <p className="mb-3 text-sm text-amber-700">{message}</p> : null}
+
       {loading && recordings.length === 0 ? (
-        <p className="text-sm text-zinc-500">Loading recordings…</p>
+        <p className="text-sm text-[var(--rc-muted)]">Loading recordings…</p>
       ) : recordings.length === 0 ? (
-        <p className="text-sm text-zinc-500">No recordings yet. Enable record on click2call or use in-call record.</p>
+        <p className="text-sm text-[var(--rc-muted)]">
+          No recordings in database. Enable &quot;Record &amp; transcribe&quot; on dialpad and complete a call.
+        </p>
       ) : (
         <ul className="space-y-4">
           {recordings.map((rec) => (
-            <li
-              key={rec.relativePath}
-              className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-4"
-            >
+            <li key={rec.callId ?? rec.name} className="rounded-xl border border-[var(--rc-border)] bg-gray-50 p-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="font-medium text-white">{rec.name}</p>
-                  <p className="text-xs text-zinc-500">
-                    {new Date(rec.modifiedAt).toLocaleString()} · {formatSize(rec.size)}
+                  <p className="font-medium text-[var(--rc-text)]">{rec.name}</p>
+                  <p className="text-xs text-[var(--rc-muted)]">
+                    {rec.agent && rec.customer ? `${rec.agent} → ${rec.customer} · ` : ""}
+                    {new Date(rec.modifiedAt).toLocaleString()}
+                    {rec.durationSec ? ` · ${rec.durationSec}s` : ""}
                   </p>
                 </div>
                 <a
-                  className="text-xs text-sky-400 hover:underline"
-                  href={`/api/recordings/${rec.relativePath}`}
+                  className="text-xs font-medium text-[var(--rc-primary)] hover:underline"
+                  href={audioSrc(rec)}
                   download={rec.name}
                 >
                   Download
                 </a>
               </div>
-              <audio
-                controls
-                preload="none"
-                className="w-full"
-                src={`/api/recordings/${rec.relativePath
-                  .split("/")
-                  .map(encodeURIComponent)
-                  .join("/")}`}
-              />
+              <audio controls preload="none" className="w-full" src={audioSrc(rec)} />
             </li>
           ))}
         </ul>
