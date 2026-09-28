@@ -8,17 +8,24 @@ type Params = { params: Promise<{ uuid: string }> };
 
 export async function DELETE(_req: Request, { params }: Params) {
   const { uuid } = await params;
-  const manager = getEslManager();
-  const result = await manager.api(`uuid_kill ${uuid}`);
-  return NextResponse.json({ ok: true, result });
+  try {
+    const manager = getEslManager();
+    const result = await manager.api(`uuid_kill ${uuid}`);
+    return NextResponse.json({ ok: true, result });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Hangup failed";
+    return NextResponse.json({ error: message }, { status: 503 });
+  }
 }
 
 export async function POST(req: Request, { params }: Params) {
   const { uuid } = await params;
   const body = (await req.json()) as { action: string; target?: string };
-  const manager = getEslManager();
 
-  switch (body.action) {
+  try {
+    const manager = getEslManager();
+
+    switch (body.action) {
     case "hold": {
       const result = await manager.api(`uuid_hold ${uuid}`);
       return NextResponse.json({ ok: true, result });
@@ -37,6 +44,14 @@ export async function POST(req: Request, { params }: Params) {
     }
     case "record_stop": {
       const result = await manager.api(`uuid_record ${uuid} stop`);
+      return NextResponse.json({ ok: true, result });
+    }
+    case "mute": {
+      const result = await manager.api(`uuid_media off ${uuid}`);
+      return NextResponse.json({ ok: true, result });
+    }
+    case "unmute": {
+      const result = await manager.api(`uuid_media on ${uuid}`);
       return NextResponse.json({ ok: true, result });
     }
     case "transfer": {
@@ -59,5 +74,9 @@ export async function POST(req: Request, { params }: Params) {
     }
     default:
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Call action failed";
+    return NextResponse.json({ error: message }, { status: 503 });
   }
 }

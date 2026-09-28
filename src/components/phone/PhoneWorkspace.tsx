@@ -2,30 +2,47 @@
 
 import { useFsEvents } from "@/hooks/useFsEvents";
 import { Dialpad } from "@/components/phone/Dialpad";
-import { LiveCallsTable } from "@/components/phone/LiveCallsTable";
+import { ActiveCallControls } from "@/components/phone/ActiveCallControls";
 import { LiveTranscriptChat } from "@/components/phone/LiveTranscriptChat";
+import { DeepgramTestPanel } from "@/components/phone/DeepgramTestPanel";
 import { AlertTriangle, Phone } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import type { Click2CallMode } from "@/lib/types";
 
-type Props = { eslConnected: boolean };
+type Props = { eslConnected: boolean; deepgramConfigured?: boolean };
 
-export function PhoneWorkspace({ eslConnected }: Props) {
+export function PhoneWorkspace({ eslConnected, deepgramConfigured = false }: Props) {
   const { connected, channels } = useFsEvents();
+  const [focusCallId, setFocusCallId] = useState<string | null>(null);
+  const [micWsPort, setMicWsPort] = useState(3001);
 
-  async function onDial(payload: {
-    agent: string;
-    destination: string;
-    record: boolean;
-    mode: Click2CallMode;
-  }) {
-    const res = await fetch("/api/click2call", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = (await res.json()) as { error?: string };
-    if (!res.ok) throw new Error(data.error ?? "Call failed");
-  }
+  useEffect(() => {
+    void fetch("/api/integrations/status")
+      .then((r) => r.json())
+      .then((d: { micTestWs?: { port?: number } }) => {
+        if (d.micTestWs?.port) setMicWsPort(d.micTestWs.port);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const onDial = useCallback(
+    async (payload: {
+      agent: string;
+      destination: string;
+      record: boolean;
+      mode: Click2CallMode;
+    }) => {
+      const res = await fetch("/api/click2call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json()) as { error?: string; callId?: string };
+      if (!res.ok) throw new Error(data.error ?? "Call failed");
+      if (data.callId) setFocusCallId(data.callId);
+    },
+    [],
+  );
 
   const pbxOk = connected || eslConnected;
 
@@ -38,8 +55,8 @@ export function PhoneWorkspace({ eslConnected }: Props) {
             <p className="font-semibold">PBX not connected</p>
             <p className="text-amber-800/90">
               Fix ESL ACL on FreeSWITCH, set <code className="text-xs">MONGODB_URI</code>,{" "}
-              <code className="text-xs">DEEPGRAM_API_KEY</code>, and enable{" "}
-              <code className="text-xs">mod_audio_fork</code> for live transcript.
+              <code className="text-xs">DEEPGRAM_API_KEY</code>, and{" "}
+              <code className="text-xs">AUDIO_FORK_PUBLIC_WS</code> (LAN IP, port 3001).
             </p>
           </div>
         </div>
@@ -52,13 +69,13 @@ export function PhoneWorkspace({ eslConnected }: Props) {
           </div>
           <div>
             <p className="text-2xl font-bold">{channels.length}</p>
-            <p className="text-xs text-[var(--rc-muted)]">Active calls</p>
+            <p className="text-xs text-[var(--rc-muted)]">Active channels</p>
           </div>
         </div>
         <div className="rc-card p-4 md:col-span-2">
-          <p className="text-sm font-medium text-[var(--rc-text)]">Queue status</p>
+          <p className="text-sm font-medium text-[var(--rc-text)]">In-call experience</p>
           <p className="text-xs text-[var(--rc-muted)]">
-            Click2Call · stereo record on bridge · dual-leg Deepgram fork
+            Click a call card to link the transcript · stereo record on bridge · Deepgram on both legs
           </p>
         </div>
       </div>
@@ -68,12 +85,19 @@ export function PhoneWorkspace({ eslConnected }: Props) {
           <Dialpad disabled={!pbxOk} onDial={onDial} />
         </div>
         <div className="space-y-4 xl:col-span-5">
-          <LiveCallsTable channels={channels} connected={pbxOk} />
+          <ActiveCallControls
+            channels={channels}
+            connected={pbxOk}
+            focusCallId={focusCallId}
+            onFocusCallId={setFocusCallId}
+          />
         </div>
         <div className="xl:col-span-4">
-          <LiveTranscriptChat />
+          <LiveTranscriptChat callId={focusCallId} />
         </div>
       </div>
+
+      <DeepgramTestPanel deepgramConfigured={deepgramConfigured} micWsPort={micWsPort} />
     </div>
   );
 }

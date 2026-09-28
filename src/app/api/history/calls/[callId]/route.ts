@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { isMongoConfigured } from "@/lib/mongodb/client";
-import { findCallById, listTranscriptsForCall } from "@/lib/mongodb/calls";
+import {
+  findCallById,
+  listTranscriptsForCall,
+  recordingPlaybackUrl,
+} from "@/lib/mongodb/calls";
 
 export const runtime = "nodejs";
 
@@ -18,5 +22,11 @@ export async function GET(_req: Request, { params }: Params) {
   }
 
   const transcripts = await listTranscriptsForCall(callId);
-  return NextResponse.json({ call, transcripts });
+  return NextResponse.json({
+    call: {
+      ...call,
+      recordingUrl: recordingPlaybackUrl(call),
+    },
+    transcripts,
+  });
 }

@@ -2,21 +2,45 @@
 
 import { useLiveTranscripts } from "@/hooks/useLiveTranscripts";
 import { Bot, User } from "lucide-react";
+import { useEffect, useRef } from "react";
 
-export function LiveTranscriptChat() {
-  const { lines } = useLiveTranscripts();
+type Props = {
+  callId?: string | null;
+};
+
+export function LiveTranscriptChat({ callId }: Props) {
+  const { lines } = useLiveTranscripts(callId);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [lines.length]);
 
   return (
     <div className="rc-card flex h-full min-h-[420px] flex-col">
       <div className="border-b border-[var(--rc-border)] px-5 py-4">
         <h2 className="text-lg font-semibold">Live transcript</h2>
-        <p className="text-xs text-[var(--rc-muted)]">Agent & customer · Deepgram streaming</p>
+        <p className="text-xs text-[var(--rc-muted)]">
+          {callId
+            ? `Call ${callId.slice(0, 8)}… — agent & customer`
+            : "Select an active call to filter captions"}
+        </p>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
-        {lines.length === 0 ? (
+        {!callId ? (
           <p className="text-center text-sm text-[var(--rc-muted)]">
-            Start a call to see real-time captions
+            Place or receive a call — the active call links here automatically.
           </p>
+        ) : lines.length === 0 ? (
+          <div className="space-y-2 text-center text-sm text-[var(--rc-muted)]">
+            <p>Listening… speak on the call.</p>
+            <p className="text-xs">
+              Live captions need <code className="text-[10px]">DEEPGRAM_API_KEY</code>,{" "}
+              <code className="text-[10px]">mod_audio_fork</code>, and{" "}
+              <code className="text-[10px]">AUDIO_FORK_PUBLIC_WS</code> reachable from the PBX.
+              After hangup, post-call transcript uses the recording.
+            </p>
+          </div>
         ) : (
           lines.map((line) => {
             const agent = line.role === "agent";
@@ -39,6 +63,7 @@ export function LiveTranscriptChat() {
                 >
                   <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--rc-muted)]">
                     {agent ? "Agent" : "Customer"}
+                    {line.source === "post-call" ? " · recording" : line.source === "live" ? " · live" : ""}
                   </p>
                   {line.text}
                 </div>
@@ -51,6 +76,7 @@ export function LiveTranscriptChat() {
             );
           })
         )}
+        <div ref={bottomRef} />
       </div>
     </div>
   );

@@ -12,7 +12,14 @@ export async function GET() {
   return NextResponse.json({
     esl: { connected: manager.connected, host: fsConfig.eslHost },
     mongodb: { configured: isMongoConfigured() },
-    deepgram: { configured: Boolean(fsConfig.deepgramApiKey) },
+    deepgram: {
+      configured: Boolean(fsConfig.deepgramApiKey),
+      testEndpoint: "/api/integrations/deepgram/test",
+    },
+    micTestWs: {
+      port: fsConfig.audioForkPort,
+      path: "/deepgram-mic",
+    },
     recording: {
       pathOnFs: fsConfig.recordingsPathOnFs,
       httpBase: fsConfig.recordingsHttpBase || null,

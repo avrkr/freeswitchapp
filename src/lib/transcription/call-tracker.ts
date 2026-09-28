@@ -73,20 +73,27 @@ async function startAudioFork(uuid: string, callId: string, role: "agent" | "cus
   const base = fsConfig.audioForkPublicWs.replace(/\/$/, "").split("?")[0];
   const url = `${base}?callId=${encodeURIComponent(callId)}&role=${role}`;
   const manager = getEslManager();
-  try {
-    await manager.api(`uuid_audio_fork ${uuid} start ${url} mono 8000 L16`);
-    forkedUuids.add(uuid);
-  } catch {
+  const attempts = [
+    `uuid_audio_fork ${uuid} start '${url}' mono 8000 L16`,
+    `uuid_audio_fork ${uuid} start ${url} mono 8000 L16`,
+    `uuid_audio_fork ${uuid} start ${url} mono 8000`,
+  ];
+  for (const cmd of attempts) {
     try {
-      await manager.api(`uuid_audio_fork ${uuid} start ${url} mono 8000`);
+      const out = await manager.api(cmd);
+      if (/error|not found|invalid/i.test(out)) continue;
       forkedUuids.add(uuid);
-    } catch (err) {
-      console.warn(
-        "[audio-fork] Enable mod_audio_fork on FreeSWITCH:",
-        err instanceof Error ? err.message : err,
-      );
+      console.log("[audio-fork] started", role, callId.slice(0, 8), out.trim().slice(0, 80));
+      return;
+    } catch {
+      /* try next syntax */
     }
   }
+  console.warn(
+    "[audio-fork] Could not start fork for",
+    role,
+    "— load mod_audio_fork on FS and set AUDIO_FORK_PUBLIC_WS to a URL FS can reach (not 127.0.0.1)",
+  );
 }
 
 async function startCallRecording(callId: string, anchorUuid: string) {

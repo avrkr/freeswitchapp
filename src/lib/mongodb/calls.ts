@@ -140,6 +140,17 @@ export async function listCalls(limit = 50) {
     .toArray();
 }
 
+export async function listActiveCalls(limit = 15) {
+  const db = await getMongoDb();
+  if (!db) return [];
+  return db
+    .collection<CallDocument>(CALLS)
+    .find({ status: { $in: ["ringing", "active"] } })
+    .sort({ startedAt: -1 })
+    .limit(limit)
+    .toArray();
+}
+
 export function callToCdrRow(call: CallDocument): CdrRow {
   return {
     callId: call.callId,

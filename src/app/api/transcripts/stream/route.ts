@@ -18,7 +18,13 @@ export async function GET(req: Request) {
 
       bus.on("transcript", send);
 
+      const heartbeat = setInterval(() => {
+        if (closed) return;
+        controller.enqueue(encoder.encode(": ping\n\n"));
+      }, 15000);
+
       req.signal.addEventListener("abort", () => {
+        clearInterval(heartbeat);
         closed = true;
         bus.off("transcript", send);
         controller.close();

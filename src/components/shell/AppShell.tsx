@@ -46,7 +46,12 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar integrations={integrations} />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          {nav === "phone" ? <PhoneWorkspace eslConnected={integrations.esl} /> : null}
+          {nav === "phone" ? (
+            <PhoneWorkspace
+              eslConnected={integrations.esl}
+              deepgramConfigured={integrations.deepgram}
+            />
+          ) : null}
           {nav === "history" ? <HistoryWorkspace /> : null}
           {nav === "recordings" ? <RecordingsWorkspace /> : null}
           {nav === "analytics" ? <AnalyticsWorkspace /> : null}
