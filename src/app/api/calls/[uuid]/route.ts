@@ -28,10 +28,10 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ ok: true, result });
     }
     case "record_start": {
-      const file = body.target;
-      if (!file) {
-        return NextResponse.json({ error: "target path required" }, { status: 400 });
-      }
+      const file =
+        body.target ??
+        `${fsConfig.recordingsPathOnFs}/manual_${uuid.slice(0, 8)}_${Date.now()}.wav`;
+      await manager.api(`uuid_setvar ${uuid} RECORD_STEREO true`);
       const result = await manager.api(`uuid_record ${uuid} start ${file}`);
       return NextResponse.json({ ok: true, result });
     }

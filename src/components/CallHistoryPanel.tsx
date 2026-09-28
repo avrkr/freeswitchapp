@@ -66,7 +66,7 @@ export function CallHistoryPanel() {
   }
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5 shadow-xl">
+    <section className="rc-card p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">Call history</h2>

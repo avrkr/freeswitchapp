@@ -16,7 +16,9 @@ export async function POST(req: Request) {
   }
 
   const command = buildOriginateCommand(body);
-  const callId = await registerClick2Call(body.agent, body.destination);
+  const callId = await registerClick2Call(body.agent, body.destination, {
+    record: body.record,
+  });
   const manager = getEslManager();
   try {
     const result = await manager.bgapi(command);

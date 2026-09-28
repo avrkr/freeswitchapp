@@ -19,6 +19,7 @@ export function buildOriginateCommand(req: Click2CallRequest): string {
     `originate_timeout=${timeout}`,
     `ignore_early_media=true`,
     `hangup_after_bridge=true`,
+    `RECORD_STEREO=true`,
   ];
 
   if (req.callerIdName) {
@@ -26,14 +27,6 @@ export function buildOriginateCommand(req: Click2CallRequest): string {
   }
   if (req.callerIdNumber) {
     vars.push(`origination_caller_id_number=${sanitizeExt(req.callerIdNumber)}`);
-  }
-
-  if (req.record) {
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const file = `${fsConfig.recordingsPathOnFs}/c2c_${agent}_to_${destination}_${stamp}.wav`;
-    vars.push("RECORD_STEREO=true");
-    vars.push("bridge_pre_execute_bleg_app=record_session");
-    vars.push(`bridge_pre_execute_bleg_data=${file}`);
   }
 
   const agentLeg = `user/${agent}@${domain}`;
@@ -54,6 +47,5 @@ export function buildOriginateCommand(req: Click2CallRequest): string {
       break;
   }
 
-  // With &bridge(...), do not append "exten XML context" — that causes originate parse errors
   return `originate ${dialString}`;
 }
