@@ -13,7 +13,11 @@ export async function GET() {
     esl: { connected: manager.connected, host: fsConfig.eslHost },
     mongodb: { configured: isMongoConfigured() },
     deepgram: { configured: Boolean(fsConfig.deepgramApiKey) },
-    recording: { pathOnFs: fsConfig.recordingsPathOnFs },
+    recording: {
+      pathOnFs: fsConfig.recordingsPathOnFs,
+      httpBase: fsConfig.recordingsHttpBase || null,
+      localDir: fsConfig.recordingsDir,
+    },
     audioFork: { publicWs: fsConfig.audioForkPublicWs, port: fsConfig.audioForkPort },
   });
 }

@@ -2,6 +2,8 @@ import http from "http";
 import next from "next";
 import { startAudioForkServer } from "../src/lib/audio-fork/ws-server";
 import { ensureIndexes } from "../src/lib/mongodb/calls";
+import { ensureStorageIndexes } from "../src/lib/mongodb/storage";
+import { backfillMongoCollections } from "../src/lib/mongodb/backfill";
 import { fsConfig } from "../src/lib/config";
 
 const dev = process.env.NODE_ENV !== "production";
@@ -14,6 +16,12 @@ const handle = app.getRequestHandler();
 app.prepare().then(async () => {
   await ensureIndexes().catch((err) => {
     console.warn("[mongodb] index setup skipped:", err);
+  });
+  await ensureStorageIndexes().catch((err) => {
+    console.warn("[mongodb] storage indexes skipped:", err);
+  });
+  await backfillMongoCollections().catch((err) => {
+    console.warn("[mongodb] backfill skipped:", err);
   });
 
   startAudioForkServer(fsConfig.audioForkPort);

@@ -22,6 +22,8 @@ export const fsConfig = {
   ),
   recordingsPathOnFs:
     process.env.FS_RECORDINGS_PATH_ON_FS ?? "/usr/local/freeswitch/recordings",
+  /** Optional HTTP base to fetch/serve WAV from FreeSWITCH host (e.g. http://192.168.43.137/recordings) */
+  recordingsHttpBase: process.env.FS_RECORDINGS_HTTP_BASE ?? "",
   mongodbUri: process.env.MONGODB_URI ?? "",
   deepgramApiKey: process.env.DEEPGRAM_API_KEY ?? "",
   /** WebSocket URL FreeSWITCH mod_audio_fork uses (must reach this app from FS host) */

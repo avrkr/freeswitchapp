@@ -149,7 +149,12 @@ class EslManager extends EventEmitter {
     });
 
     void import("@/lib/transcription/call-tracker").then(({ handleFsEventForTranscription }) =>
-      handleFsEventForTranscription(event),
+      handleFsEventForTranscription(event).catch((err) => {
+        console.error(
+          "[call-tracker]",
+          err instanceof Error ? err.message : err,
+        );
+      }),
     );
   }
 
