@@ -147,6 +147,10 @@ class EslManager extends EventEmitter {
       connected: true,
       at: new Date().toISOString(),
     });
+
+    void import("@/lib/transcription/call-tracker").then(({ handleFsEventForTranscription }) =>
+      handleFsEventForTranscription(event),
+    );
   }
 
   private broadcast(payload: FsEventPayload) {

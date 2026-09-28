@@ -20,7 +20,13 @@ export const fsConfig = {
     process.env.FS_CDR_DIR,
     path.join(process.cwd(), "..", "freeswitchlocal", "log", "cdr-csv"),
   ),
-  /** Path to recordings as seen by the FreeSWITCH host (not the Windows app server) */
   recordingsPathOnFs:
     process.env.FS_RECORDINGS_PATH_ON_FS ?? "/usr/local/freeswitch/recordings",
+  mongodbUri: process.env.MONGODB_URI ?? "",
+  deepgramApiKey: process.env.DEEPGRAM_API_KEY ?? "",
+  /** WebSocket URL FreeSWITCH mod_audio_fork uses (must reach this app from FS host) */
+  audioForkPublicWs:
+    process.env.AUDIO_FORK_PUBLIC_WS ?? "ws://127.0.0.1:3001/fork",
+  audioForkPort: Number(process.env.AUDIO_FORK_PORT ?? "3001"),
+  appPort: Number(process.env.PORT ?? "3000"),
 };

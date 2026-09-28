@@ -29,6 +29,22 @@ Open [http://localhost:3000](http://localhost:3000).
 | Recordings | Lists WAV/MP3/OGG under `FS_RECORDINGS_DIR`, in-browser playback |
 | CDR | Reads `Master.csv` from mod_cdr_csv |
 | Click2Call | `bgapi originate` with agent-first, destination-first, or simultaneous modes; optional stereo record |
+| Live transcript | Deepgram streaming — separate **agent** / **customer** columns (`mod_audio_fork`) |
+| Call history | MongoDB — calls, final transcript segments, recording paths |
+
+## Deepgram + MongoDB
+
+Add to `.env.local`:
+
+```env
+MONGODB_URI=mongodb+srv://...
+DEEPGRAM_API_KEY=...
+AUDIO_FORK_PUBLIC_WS=ws://YOUR_PC_LAN_IP:3001/fork
+```
+
+Run the app with `npm run dev` (custom server — Next on **3000**, audio fork WebSocket on **3001**).
+
+On FreeSWITCH, enable **`mod_audio_fork`** in `modules.conf.xml`, restart FS, and ensure FS can reach `AUDIO_FORK_PUBLIC_WS` from the network.
 
 ## Click2Call example
 

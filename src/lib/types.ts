@@ -43,6 +43,8 @@ export type RecordingEntry = {
   extension: string;
 };
 
+export type CallRole = "agent" | "customer";
+
 export type Click2CallMode = "agent-first" | "destination-first" | "simultaneous";
 
 export type Click2CallRequest = {

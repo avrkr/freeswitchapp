@@ -2,16 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useFsEvents } from "@/hooks/useFsEvents";
+import { CallHistoryPanel } from "@/components/CallHistoryPanel";
 import { CdrPanel } from "@/components/CdrPanel";
 import { Click2CallPanel } from "@/components/Click2CallPanel";
 import { ConnectionBadge } from "@/components/ConnectionBadge";
 import { LiveCallsPanel } from "@/components/LiveCallsPanel";
+import { LiveTranscriptPanel } from "@/components/LiveTranscriptPanel";
 import { RecordingsPanel } from "@/components/RecordingsPanel";
 
-type Tab = "live" | "recordings" | "cdr" | "click2call";
+type Tab = "live" | "transcript" | "history" | "recordings" | "cdr" | "click2call";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "live", label: "Live calls" },
+  { id: "transcript", label: "Live transcript" },
+  { id: "history", label: "Call history" },
   { id: "recordings", label: "Recordings" },
   { id: "cdr", label: "CDR" },
   { id: "click2call", label: "Click2Call" },
@@ -77,6 +81,8 @@ export function Dashboard() {
 
       <main>
         {tab === "live" ? <LiveCallsPanel channels={channels} connected={connected} /> : null}
+        {tab === "transcript" ? <LiveTranscriptPanel /> : null}
+        {tab === "history" ? <CallHistoryPanel /> : null}
         {tab === "recordings" ? <RecordingsPanel /> : null}
         {tab === "cdr" ? <CdrPanel /> : null}
         {tab === "click2call" ? <Click2CallPanel /> : null}
