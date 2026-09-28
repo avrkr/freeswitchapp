@@ -6,7 +6,9 @@ import {
   findCallById,
   updateCall,
 } from "@/lib/mongodb/calls";
+import { insertCdrRecord, insertRecordingRecord } from "@/lib/mongodb/storage";
 import { getEslManager } from "@/lib/esl/manager";
+import { schedulePostCallTranscription } from "@/lib/transcription/post-call";
 
 type PendingClick2Call = {
   agent: string;
@@ -18,7 +20,7 @@ type PendingClick2Call = {
 
 const pending = new Map<string, PendingClick2Call>();
 const uuidToCallId = new Map<string, string>();
-const recordingByCall = new Map<string, string>();
+const recordingByCall = new Map<string, { file: string; anchorUuid: string }>();
 const forkedUuids = new Set<string>();
 const finalizedCalls = new Set<string>();
 
@@ -88,14 +90,14 @@ async function startAudioFork(uuid: string, callId: string, role: "agent" | "cus
 }
 
 async function startCallRecording(callId: string, anchorUuid: string) {
-  if (recordingByCall.has(callId)) return recordingByCall.get(callId);
+  if (recordingByCall.has(callId)) return recordingByCall.get(callId)?.file ?? null;
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const file = `${fsConfig.recordingsPathOnFs}/${callId}_${stamp}.wav`;
   const manager = getEslManager();
   try {
     await manager.api(`uuid_setvar ${anchorUuid} RECORD_STEREO true`);
     await manager.api(`uuid_record ${anchorUuid} start ${file}`);
-    recordingByCall.set(callId, file);
+    recordingByCall.set(callId, { file, anchorUuid });
     await updateCall(callId, { recordingPath: file });
     return file;
   } catch (err) {
@@ -234,21 +236,25 @@ export async function handleFsEventForTranscription(event: Record<string, string
     if (!callId || finalizedCalls.has(callId)) return;
 
     forkedUuids.delete(uuid);
-    const file =
-      recordingByCall.get(callId) ??
-      event["variable_bridge_pre_execute_bleg_data"] ??
-      event["variable_record_path"];
 
-    if (file && recordingByCall.has(callId)) {
+    const callBefore = await findCallById(callId);
+    const recMeta = recordingByCall.get(callId);
+    const file =
+      recMeta?.file ??
+      callBefore?.recordingPath ??
+      event["variable_record_path"] ??
+      event["variable_bridge_pre_execute_bleg_data"];
+
+    if (recMeta?.file && recMeta.anchorUuid) {
       try {
         const manager = getEslManager();
-        await manager.api(`uuid_record ${uuid} stop ${file}`);
+        await manager.api(`uuid_record ${recMeta.anchorUuid} stop ${recMeta.file}`);
       } catch {
         /* channel may already be gone */
       }
     }
 
-    const call = await findCallById(callId);
+    const call = callBefore ?? (await findCallById(callId));
     const endedAt = new Date();
     const startedAt = call?.startedAt ? new Date(call.startedAt) : endedAt;
     const answeredAt = call?.answeredAt ? new Date(call.answeredAt) : undefined;
@@ -290,6 +296,24 @@ export async function handleFsEventForTranscription(event: Record<string, string
     });
 
     finalizedCalls.add(callId);
+
+    const updated = await findCallById(callId);
+    if (updated) {
+      await insertCdrRecord(updated);
+      if (recordingFileName && file) {
+        await insertRecordingRecord({
+          callId,
+          fileName: recordingFileName,
+          recordingPath: file,
+          agent: updated.agent,
+          customer: updated.customer,
+          durationSec: billSec,
+          playbackUrl: recordingUrl,
+        });
+        schedulePostCallTranscription(callId, recordingFileName);
+      }
+    }
+
     uuidToCallId.delete(uuid);
     recordingByCall.delete(callId);
     pending.forEach((p, key) => {

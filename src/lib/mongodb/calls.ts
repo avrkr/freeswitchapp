@@ -38,6 +38,7 @@ export type TranscriptSegment = {
   text: string;
   isFinal: boolean;
   confidence?: number;
+  source?: "live" | "post-call";
   createdAt: Date;
 };
 
@@ -139,7 +140,7 @@ export async function listCalls(limit = 50) {
     .toArray();
 }
 
-function callToCdrRow(call: CallDocument): CdrRow {
+export function callToCdrRow(call: CallDocument): CdrRow {
   return {
     callId: call.callId,
     callerIdName: call.callerIdName ?? call.agent,
@@ -161,6 +162,17 @@ function callToCdrRow(call: CallDocument): CdrRow {
 export async function listCdrFromDb(limit = 200): Promise<CdrRow[]> {
   const db = await getMongoDb();
   if (!db) return [];
+
+  const cdrCount = await db.collection("cdr").countDocuments({});
+  if (cdrCount > 0) {
+    const rows = await db
+      .collection<CdrRow & { createdAt?: Date }>("cdr")
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
+    return rows.map(({ createdAt: _, ...row }) => row);
+  }
 
   const calls = await db
     .collection<CallDocument>(CALLS)
@@ -184,6 +196,35 @@ export function recordingPlaybackUrl(call: CallDocument): string | null {
 export async function listRecordingsFromDb(limit = 100): Promise<DbRecordingRow[]> {
   const db = await getMongoDb();
   if (!db) return [];
+
+  const recCount = await db.collection("recordings").countDocuments({});
+  if (recCount > 0) {
+    const docs = await db
+      .collection<{
+        callId: string;
+        fileName: string;
+        agent: string;
+        customer: string;
+        recordingPath: string;
+        playbackUrl?: string;
+        createdAt: Date;
+        durationSec?: number;
+      }>("recordings")
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
+    return docs.map((d) => ({
+      callId: d.callId,
+      name: d.fileName,
+      agent: d.agent,
+      customer: d.customer,
+      recordingPath: d.recordingPath,
+      playbackUrl: d.playbackUrl ?? `/api/recordings/${encodeURIComponent(d.fileName)}`,
+      modifiedAt: d.createdAt.toISOString(),
+      durationSec: d.durationSec,
+    }));
+  }
 
   const calls = await db
     .collection<CallDocument>(CALLS)
@@ -269,6 +310,17 @@ export async function listTranscriptsForCall(callId: string) {
     .collection<TranscriptSegment>(TRANSCRIPTS)
     .find({ callId })
     .sort({ createdAt: 1 })
+    .toArray();
+}
+
+export async function listRecentTranscripts(limit = 80) {
+  const db = await getMongoDb();
+  if (!db) return [];
+  return db
+    .collection<TranscriptSegment>(TRANSCRIPTS)
+    .find({})
+    .sort({ createdAt: -1 })
+    .limit(limit)
     .toArray();
 }
 
