@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fsConfig } from "@/lib/config";
+import { fsConfig, isDeepgramConfigured } from "@/lib/config";
 import { isMongoConfigured } from "@/lib/mongodb/client";
 import { getEslManager } from "@/lib/esl/manager";
 
@@ -13,7 +13,7 @@ export async function GET() {
     esl: { connected: manager.connected, host: fsConfig.eslHost },
     mongodb: { configured: isMongoConfigured() },
     deepgram: {
-      configured: Boolean(fsConfig.deepgramApiKey),
+      configured: isDeepgramConfigured(),
       testEndpoint: "/api/integrations/deepgram/test",
     },
     micTestWs: {
