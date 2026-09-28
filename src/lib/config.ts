@@ -2,7 +2,9 @@ import path from "path";
 
 function resolvePath(envPath: string | undefined, fallback: string) {
   const raw = envPath ?? fallback;
-  return path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
+  return path.isAbsolute(raw)
+    ? raw
+    : path.resolve(/* turbopackIgnore: true */ process.cwd(), raw);
 }
 
 export const fsConfig = {

@@ -21,6 +21,8 @@ class EslManager extends EventEmitter {
   private client: EslClient | null = null;
   private channels = new Map<string, LiveChannel>();
   private started = false;
+  private connecting = false;
+  private reconnectTimer: NodeJS.Timeout | null = null;
   private pollTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
 
@@ -37,13 +39,41 @@ class EslManager extends EventEmitter {
   async start() {
     if (this.started) return;
     this.started = true;
-    await this.ensureClient();
+    void this.safeEnsureClient();
     this.pollTimer = setInterval(() => {
       void this.refreshSnapshot();
     }, 4000);
     this.heartbeatTimer = setInterval(() => {
       this.broadcast({ type: "heartbeat", at: new Date().toISOString(), connected: this.connected });
     }, 15000);
+  }
+
+  private scheduleReconnect(delayMs = 5000) {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.safeEnsureClient();
+    }, delayMs);
+  }
+
+  private async safeEnsureClient() {
+    if (this.client?.isConnected || this.connecting) return;
+    this.connecting = true;
+    try {
+      await this.ensureClient();
+    } catch (err) {
+      this.client?.disconnect();
+      this.client = null;
+      this.broadcast({
+        type: "error",
+        message: err instanceof Error ? err.message : "ESL connection failed",
+        connected: false,
+        at: new Date().toISOString(),
+      });
+      this.scheduleReconnect();
+    } finally {
+      this.connecting = false;
+    }
   }
 
   private async ensureClient() {
@@ -60,18 +90,21 @@ class EslManager extends EventEmitter {
     });
 
     this.client.on("disconnect", () => {
+      this.client = null;
       this.broadcast({
         type: "error",
         message: "Disconnected from FreeSWITCH ESL",
         connected: false,
         at: new Date().toISOString(),
       });
-      setTimeout(() => void this.ensureClient(), 3000);
+      this.scheduleReconnect(3000);
     });
 
     await this.client.connect();
     await this.client.subscribe(CHANNEL_EVENTS);
-    await this.refreshSnapshot();
+    const raw = await this.client.api("show channels as json");
+    const parsed = parseChannelsJson(raw);
+    this.channels = new Map(parsed.map((c) => [c.uuid, c]));
     this.broadcast({
       type: "snapshot",
       channels: this.snapshot,
@@ -113,7 +146,10 @@ class EslManager extends EventEmitter {
 
   async refreshSnapshot() {
     try {
-      await this.ensureClient();
+      if (!this.client?.isConnected) {
+        void this.safeEnsureClient();
+        return;
+      }
       const raw = await this.client!.api("show channels as json");
       const parsed = parseChannelsJson(raw);
       this.channels = new Map(parsed.map((c) => [c.uuid, c]));
