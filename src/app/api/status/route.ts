@@ -6,6 +6,8 @@ export const runtime = "nodejs";
 
 export async function GET() {
   const manager = getEslManager();
+  await manager.start();
+  await manager.refreshSnapshot();
   return NextResponse.json({
     connected: manager.connected,
     esl: {

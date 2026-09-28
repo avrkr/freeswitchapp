@@ -40,6 +40,8 @@ Agent **100** calls extension **200** (agent rings first, then bridge):
 
 ## Notes
 
+- Open the app at **http://192.168.43.137:3000** in dev; `allowedDevOrigins` in `next.config.ts` must include that host.
+- ESL must reach FreeSWITCH on `FS_ESL_HOST:8021`. If you see **ESL offline** but the port is open, check FreeSWITCH logs for `Access Denied, go away` — that means `mod_event_socket` ACL blocked your client. Use `esl_trusted` in `conf/autoload_configs/acl.conf.xml` and `event_socket.conf.xml`, then on the FS box run `reloadacl` and `reload mod_event_socket` (or restart FreeSWITCH).
 - If the app runs on Windows but FreeSWITCH runs in WSL/Linux, set `FS_ESL_HOST` to the WSL IP and ensure port 8021 is reachable.
 - Create the recordings folder if missing: `freeswitchlocal/recordings`
 - CDR appears after completed calls once `mod_cdr_csv` writes `log/cdr-csv/Master.csv`
